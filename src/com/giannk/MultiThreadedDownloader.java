@@ -1,81 +1,53 @@
 package com.giannk;
-
-import java.io.*;
-import java.net.HttpURLConnection;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
 public class MultiThreadedDownloader {
-    private static final int MAX_THREADS = 4;
-    private static final String DOWNLOAD_URL = "https://www.iconsdb.com/icons/download/white/calendar-8-32.png";
-    private static final String OUTPUT_FILE = "calendar-8-32.png";
+    private final static int NUM_THREADS = 4;
+    private final static int BUFFER_SIZE = 1024 * 1024;
 
-    public static void main(String[] args) {
-        try {
-            URL url = new URL(DOWNLOAD_URL);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            int fileSize = conn.getContentLength();
-            conn.disconnect();
+    public static void main(String[] args) throws Exception {
+        String fileUrl = "https://raw.githubusercontent.com/zhaofei01/book/master/Java/Effective%20Java%2C%20Third%20Edition.pdf";
+        String outputFilePath = "abc.pdf";
 
-            List<DownloadThread> threads = new ArrayList<>();
-            int blockSize = fileSize / MAX_THREADS;
-            for (int i = 0; i < MAX_THREADS; i++) {
-                int startByte = i * blockSize;
-                int endByte = (i == MAX_THREADS - 1) ? fileSize - 1 : startByte + blockSize - 1;
-                DownloadThread thread = new DownloadThread(startByte, endByte, url);
-                threads.add(thread);
-                thread.start();
-            }
+        URL url = new URL(fileUrl);
+        long fileSize = url.openConnection().getContentLengthLong();
+        File outputFile = new File(outputFilePath);
 
-            for (DownloadThread thread : threads) {
-                thread.join();
-            }
+        List<DownloadThread> threads = new ArrayList<>();
+        Object progressMonitor = new ProcessPrintThread();
 
-            try(FileOutputStream output = new FileOutputStream(OUTPUT_FILE)) {
-                for (DownloadThread thread : threads) {
-                    output.write(thread.getBuffer());
-                }
-            }
-
-            System.out.println("Download complete!");
-        } catch (Exception e) {
-            e.printStackTrace();
+        for (int i = 0; i < NUM_THREADS; i++) {
+            DownloadThread thread = new DownloadThread(fileUrl, outputFilePath + "." + i, BUFFER_SIZE, fileSize, progressMonitor);
+            threads.add(thread);
+            thread.start();
         }
+
+        for (DownloadThread thread : threads) {
+            thread.join();
+        }
+
+        mergeFiles(outputFilePath, outputFile.length(), NUM_THREADS);
     }
 
-    private static class DownloadThread extends Thread {
-        private int startByte;
-        private int endByte;
-        private URL url;
-        private byte[] buffer;
-
-        public DownloadThread(int startByte, int endByte, URL url) {
-            this.startByte = startByte;
-            this.endByte = endByte;
-            this.url = url;
-            buffer = new byte[endByte - startByte + 1];
-        }
-
-        public byte[] getBuffer() {
-            return buffer;
-        }
-
-        @Override
-        public void run() {
-            try {
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestProperty("Range", "bytes=" + startByte + "-" + endByte);
-                InputStream input = conn.getInputStream();
-                int bytesRead = input.read(buffer);
-                while (bytesRead != -1) {
-                    bytesRead = input.read(buffer, bytesRead, buffer.length - bytesRead);
+    private static void mergeFiles(String outputFilePath, long fileSize, int numThreads) throws IOException {
+        byte[] buffer = new byte[BUFFER_SIZE];
+        int bytesRead;
+        try (FileOutputStream outputStream = new FileOutputStream(outputFilePath)) {
+            for (int i = 0; i < numThreads; i++) {
+                try (BufferedInputStream inputStream = new BufferedInputStream(new java.io.FileInputStream(outputFilePath + "." + i))) {
+                    while ((bytesRead = inputStream.read(buffer, 0, BUFFER_SIZE)) != -1) {
+                        outputStream.write(buffer, 0, bytesRead);
+                    }
                 }
-                input.close();
-                conn.disconnect();
-            } catch (Exception e) {
-                e.printStackTrace();
+                new File(outputFilePath + "." + i).delete();
             }
         }
+        System.out.println("Download completed!");
     }
 }
