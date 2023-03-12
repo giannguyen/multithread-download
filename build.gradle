@@ -1,0 +1,26 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'distribution'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+}
+
+
+application {
+    mainClassName = 'com.giannk.MultiThreadedDownloader'
+}
