@@ -9,6 +9,7 @@ repositories {
 }
 
 dependencies {
+    implementation 'commons-cli:commons-cli:1.4'
     testImplementation 'junit:junit:4.13.2'
 }
 
@@ -16,6 +17,11 @@ sourceSets {
     main {
         java {
             srcDirs = ['src']
+        }
+    }
+    test {
+        java {
+            srcDirs = ['test/src']
         }
     }
 }
